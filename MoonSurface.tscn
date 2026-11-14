@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://c1vaupuegwnlk"]
+
+[ext_resource type="PackedScene" uid="uid://bc44afvxaqb10" path="res://CatPlayer.tscn" id="1_8ysln"]
+[ext_resource type="Script" uid="uid://dwlmj3gym37sc" path="res://LunarRock.gd" id="2_ss2c7"]
+[ext_resource type="Texture2D" uid="uid://c2hpp8wf0jslp" path="res://icon.svg" id="3_pc3p3"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_vki55"]
+radius = 23.0
+
+[node name="MoonSurface" type="Node2D" unique_id=214586296]
+
+[node name="BasaltRock" type="Area2D" parent="." unique_id=783810202]
+script = ExtResource("2_ss2c7")
+
+[node name="Sprite2D" type="Sprite2D" parent="BasaltRock" unique_id=1133273763]
+position = Vector2(172, 0)
+scale = Vector2(0.375, 0.359375)
+texture = ExtResource("3_pc3p3")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BasaltRock" unique_id=35596143]
+position = Vector2(172, 0)
+shape = SubResource("CircleShape2D_vki55")
+
+[node name="CatPlayer" parent="." unique_id=1714807404 instance=ExtResource("1_8ysln")]
