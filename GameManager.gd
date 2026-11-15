@@ -5,7 +5,6 @@ signal game_over(won: bool, reason: String)
 signal nasa_flare_loaded
 
 # --- NASA API VERİLERİ ---
-const NASA_API_KEY: String = "DEMO_KEY" # Kendi api.nasa.gov anahtarını buraya yazabilirsin
 var flare_data = {
 	"class_type": "M2.4",
 	"time": "2026-11-14 14:22 UTC",
@@ -38,37 +37,36 @@ var collected_rocks = {
 func _ready() -> void:
 	fetch_nasa_solar_flare()
 
-var api_key: String = Secrets.NASA_API_KEY
+var api_key: String = Secrets.NASA_API_KEY.strip_edges()
 
 func fetch_nasa_solar_flare() -> void:
 	var http = HTTPRequest.new()
 	add_child(http)
 	http.request_completed.connect(_on_nasa_request_completed)
 	
+	# Son 30 günün gerçek Güneş patlamalarını çek (kesin veri gelmesi için)
 	var unix_now = Time.get_unix_time_from_system()
 	var end_date = Time.get_date_string_from_unix_time(unix_now)
-	var start_date = Time.get_date_string_from_unix_time(unix_now - 10 * 86400)
+	var start_date = Time.get_date_string_from_unix_time(unix_now - 30 * 86400)
 	
 	var url = "https://api.nasa.gov/DONKI/FLR?startDate=%s&endDate=%s&api_key=%s" % [start_date, end_date, api_key]
+	print("[NASA API] URL: ", url.replace(api_key, "***"))
 	http.request(url)
 
 func _on_nasa_request_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	var raw_text = body.get_string_from_utf8()
 	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
-		print("[NASA API] Yanıt alınamadı (Kod: %d), yedek veri devrede." % response_code)
+		print("[NASA API] Yanıt alınamadı (Kod: %d) -> Detay: %s" % [response_code, raw_text])
 		return
 		
-	var json = JSON.parse_string(body.get_string_from_utf8())
+	var json = JSON.parse_string(raw_text)
 	if typeof(json) == TYPE_ARRAY and json.size() > 0:
-		# Dizideki en güncel Güneş patlamasını al
 		var latest = json[json.size() - 1]
 		
 		flare_data["class_type"] = str(latest.get("classType", "M1.8"))
-		
-		# Tarih ve saati okunaklı hale getir ("2026-11-14T14:22Z" -> "2026-11-14 14:22 UTC")
 		var raw_time = str(latest.get("peakTime", latest.get("beginTime", "")))
 		flare_data["time"] = raw_time.replace("T", " ").replace("Z", " UTC")
 		
-		# Güneş üzerindeki koordinat ve aktif bölge numarası
 		var loc = str(latest.get("sourceLocation", ""))
 		var region = str(latest.get("activeRegionNum", ""))
 		if loc != "":
@@ -78,8 +76,7 @@ func _on_nasa_request_completed(result: int, response_code: int, _headers: Packe
 			
 		flare_data["is_live"] = true
 		emit_signal("nasa_flare_loaded")
-		print("[NASA LIVE DONKI] SOLAR RADIATION: ", flare_data)
-
+		print("[NASA LIVE DONKI] Güneş Patlaması Yüklendi: ", flare_data)
 func _process(delta: float) -> void:
 	if is_timer_running and current_phase == "SHIP":
 		mission_timer -= delta
