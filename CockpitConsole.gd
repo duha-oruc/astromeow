@@ -1,13 +1,13 @@
 extends Area2D
 
-func _ready() -> void:
-	body_entered.connect(func(b): if b.name == "CatPlayer": b.nearby_interactable = self)
-	body_exited.connect(func(b): if b.name == "CatPlayer": b.nearby_interactable = null)
-
-func interact() -> void:
-	if GameManager.all_tasks_done():
-		GameManager.current_phase = "MOON"
-		GameManager.is_timer_running = false
-		get_tree().current_scene.load_moon_surface()
-	else:
-		print("Meow! Finish all pre-flight preparations first!")
+func _process(_delta: float) -> void:
+	if Input.is_action_just_pressed("interact"):
+		var player = get_parent().get_node_or_null("CatPlayer")
+		if player and global_position.distance_to(player.global_position) < 120.0:
+			if GameManager.all_tasks_done():
+				GameManager.current_phase = "MOON"
+				GameManager.is_timer_running = false
+				GameManager.emit_signal("stats_updated")
+				get_tree().current_scene.load_moon_surface()
+			else:
+				print("Meow! Finish all pre-flight preparations first!")
