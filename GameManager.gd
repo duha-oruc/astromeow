@@ -2,6 +2,7 @@ extends Node
 
 signal stats_updated
 signal game_over(won: bool, reason: String)
+
 signal nasa_flare_loaded
 
 # --- NASA API VERİLERİ ---
@@ -12,30 +13,45 @@ var flare_data = {
 	"is_live": false
 }
 
-# Phase 1: Ship Prep Tasks
+signal rock_hovered(info_text: String)
+
+# Phase 1: Optional Ship Prep Tasks (+30s each)
 var tasks = {
-	"polyethylene": false, # Radiation shielding bricks
-	"space_food": false,   # Rations
-	"mli": false           # Multi-Layer Insulation
+	"polyethylene": false,
+	"space_food": false,
+	"mli": false
 }
 
-# Timer / Mission Readiness Counter
-var mission_timer: float = 60.0
-var is_timer_running: bool = true
-var current_phase: String = "SHIP" # "SHIP" or "MOON"
+# Phase 2: Dynamic 5-Rock Mission Targets
+var all_rock_types = ["Basalt", "Anorthosite", "Breccia", "Regolith", "Ilmenite", "Olivine"]
+const ROCK_DESCRIPTIONS = {
+	"Basalt": "(iron & magnesium)",
+	"Anorthosite": "Bright white highland",
+	"Breccia": "Jagged rock fragments",
+	"Regolith": "Fine, powdery lunar dust",
+	"Ilmenite": "Titanium-iron oxide",
+	"Olivine": "Greenish magnesium-iron crystal"
+}
+var target_rocks: Dictionary = {}
+var collected_rocks: Dictionary = {}
 
-# Phase 2: Moon Rock Collection
-var target_rocks = {
-	"Basalt": 3,
-	"Anorthosite": 2
-}
-var collected_rocks = {
-	"Basalt": 0,
-	"Anorthosite": 0
-}
+var time_left: float = 60.0 # Base 1 minute for the Moon phase
+var is_timer_running: bool = false
+var current_phase: String = "SHIP"
 
 func _ready() -> void:
+	generate_random_targets()
 	fetch_nasa_solar_flare()
+
+func generate_random_targets() -> void:
+	target_rocks.clear()
+	collected_rocks.clear()
+	for i in range(5):
+		var chosen = all_rock_types.pick_random()
+		target_rocks[chosen] = target_rocks.get(chosen, 0) + 1
+		collected_rocks[chosen] = 0
+
+	
 
 var api_key: String = Secrets.NASA_API_KEY.strip_edges()
 
@@ -78,28 +94,32 @@ func _on_nasa_request_completed(result: int, response_code: int, _headers: Packe
 		emit_signal("nasa_flare_loaded")
 		print("[NASA LIVE DONKI] Güneş Patlaması Yüklendi: ", flare_data)
 func _process(delta: float) -> void:
-	if is_timer_running and current_phase == "SHIP":
-		mission_timer -= delta
+	if current_phase == "MOON" and is_timer_running and time_left > 0:
+		time_left -= delta
 		emit_signal("stats_updated")
-		
-		if mission_timer <= 0:
-			mission_timer = 0
+		if time_left <= 0:
+			time_left = 0
 			is_timer_running = false
-			emit_signal("game_over", false, "Time ran out before launch preparations were finished!")
+			emit_signal("game_over", false, "Oxygen/Power depleted before all 5 samples were collected!")
 
 func complete_task(task_name: String) -> void:
 	if tasks.has(task_name) and not tasks[task_name]:
 		tasks[task_name] = true
+		time_left += 30.0 # +30 seconds bonus for Moon phase
 		emit_signal("stats_updated")
 
-func all_tasks_done() -> bool:
-	return tasks["polyethylene"] and tasks["space_food"] and tasks["mli"]
+func start_moon_phase() -> void:
+	current_phase = "MOON"
+	is_timer_running = true
+	emit_signal("stats_updated")
 
 func collect_rock(rock_type: String) -> void:
-	if collected_rocks.has(rock_type):
+	if target_rocks.has(rock_type):
 		collected_rocks[rock_type] += 1
 		emit_signal("stats_updated")
 		check_moon_win_condition()
+	else:
+		print("Not on the target list: ", rock_type)
 
 func check_moon_win_condition() -> void:
 	var won = true
@@ -113,3 +133,19 @@ func check_moon_win_condition() -> void:
 		var main_scene = get_tree().current_scene
 		if main_scene.has_method("load_space_flight"):
 			main_scene.load_space_flight("RETURN")
+	for rock_type in target_rocks.keys():
+		if collected_rocks.get(rock_type, 0) < target_rocks[rock_type]:
+			return
+	
+	is_timer_running = false
+	emit_signal("game_over", true, "Mission Success! All 5 target lunar samples collected!")
+	
+func reset_game() -> void:
+	tasks["polyethylene"] = false
+	tasks["space_food"] = false
+	tasks["mli"] = false
+	time_left = 60.0
+	is_timer_running = false
+	current_phase = "SHIP"
+	generate_random_targets()
+	emit_signal("stats_updated")
